@@ -51,11 +51,12 @@ func (c *Client) FetchFeed(url string) (*RSS, error) {
 // FetchMultipleFeeds fetches multiple RSS feeds and returns all articles sorted by date
 func (c *Client) FetchMultipleFeeds(feeds []FeedInfo) ([]Article, error) {
 	var allArticles []Article
+	var errors []string
 
 	for _, feed := range feeds {
 		rss, err := c.FetchFeed(feed.URL)
 		if err != nil {
-			// Continue with other feeds if one fails
+			errors = append(errors, fmt.Sprintf("Failed to fetch %s: %v", feed.Name, err))
 			continue
 		}
 
@@ -74,6 +75,11 @@ func (c *Client) FetchMultipleFeeds(feeds []FeedInfo) ([]Article, error) {
 	sort.Slice(allArticles, func(i, j int) bool {
 		return allArticles[i].PubDate.After(allArticles[j].PubDate)
 	})
+
+	// If no articles were fetched but there were errors, return an error
+	if len(allArticles) == 0 && len(errors) > 0 {
+		return nil, fmt.Errorf("failed to fetch any feeds: %v", errors)
+	}
 
 	return allArticles, nil
 }

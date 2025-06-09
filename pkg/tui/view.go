@@ -123,13 +123,17 @@ func (m *Model) viewManageFeeds() string {
 		b.WriteString(m.Styles.Accent.Render("Current Feeds:"))
 		b.WriteString("\n")
 		for i, feed := range m.Feeds.Feeds {
-			b.WriteString(m.Styles.Normal.Render(fmt.Sprintf("%d. %s (%s)", i+1, feed.Name, feed.URL)))
+			style := m.Styles.Normal
+			if i == m.Selected {
+				style = m.Styles.Selected
+			}
+			b.WriteString(style.Render(fmt.Sprintf("%d. %s (%s)", i+1, feed.Name, feed.URL)))
 			b.WriteString("\n")
 		}
 	}
 
 	b.WriteString("\n")
-	b.WriteString(m.Styles.Normal.Render("Press 'a' to add feed, 'd' to delete feed, Esc to menu"))
+	b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter/d to delete selected, 'a' to add, Esc to menu"))
 
 	return b.String()
 }

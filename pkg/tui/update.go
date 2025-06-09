@@ -87,12 +87,14 @@ func (m *Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch m.MenuSelected {
 		case 0:
 			m.State = StateFeedView
+			m.Selected = 0
 		case 1:
 			m.State = StateManageFeeds
+			m.Selected = 0
 		case 2:
 			m.State = StateConfigure
+			m.Selected = 0
 		}
-		m.Selected = 0
 	}
 	return m, nil
 }
@@ -129,12 +131,27 @@ func (m *Model) updateManageFeeds(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q", "esc":
 		m.State = StateMenu
 		return m, nil
+	case "up", "k":
+		if m.Selected > 0 {
+			m.Selected--
+		}
+	case "down", "j":
+		if m.Selected < len(m.Feeds.Feeds)-1 {
+			m.Selected++
+		}
 	case "a":
 		m.State = StateAddFeed
 		m.Input = ""
 		return m, nil
 	case "d":
 		if len(m.Feeds.Feeds) > 0 {
+			m.State = StateRemoveFeed
+			m.Selected = 0 // Reset selection for remove view
+			return m, nil
+		}
+	case "enter":
+		if len(m.Feeds.Feeds) > 0 && m.Selected < len(m.Feeds.Feeds) {
+			// Enter can also be used to delete the selected feed
 			m.State = StateRemoveFeed
 			return m, nil
 		}
@@ -219,6 +236,12 @@ func (m *Model) updateRemoveFeed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c", "esc":
 		m.State = StateManageFeeds
+		// Ensure selected index is valid
+		if m.Selected >= len(m.Feeds.Feeds) && len(m.Feeds.Feeds) > 0 {
+			m.Selected = len(m.Feeds.Feeds) - 1
+		} else if len(m.Feeds.Feeds) == 0 {
+			m.Selected = 0
+		}
 		return m, nil
 	case "up", "k":
 		if m.Selected > 0 {
@@ -238,8 +261,11 @@ func (m *Model) updateRemoveFeed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.Err = err
 			}
 			m.State = StateManageFeeds
+			// Adjust selection after removal
 			if m.Selected >= len(m.Feeds.Feeds) && len(m.Feeds.Feeds) > 0 {
 				m.Selected = len(m.Feeds.Feeds) - 1
+			} else if len(m.Feeds.Feeds) == 0 {
+				m.Selected = 0
 			}
 			return m, FetchAllFeedsCmd(m.RSSClient, m.Feeds)
 		}
