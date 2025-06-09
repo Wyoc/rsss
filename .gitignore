@@ -15,7 +15,10 @@
 go.work
 
 # RSS client binary
-rsss
+
 
 # Build directory
 build/
+
+.claude/
+CLAUDE.md
