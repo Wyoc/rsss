@@ -33,6 +33,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FetchMsg:
 		m.Loading = false
+		
+		// Check for new articles before updating the article list
+		if msg.Err == nil && len(msg.Articles) > 0 {
+			m.checkForNewArticles(msg.Articles)
+		}
+		
 		m.Articles = msg.Articles
 		m.Err = msg.Err
 		m.LastRefresh = time.Now()
@@ -66,6 +72,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // handleKeyPress routes key presses to the appropriate state handler
 func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Global notification dismissal
+	if m.ShowNotification && (msg.String() == "space" || msg.String() == "enter" || msg.String() == "n") {
+		m.dismissNotification()
+		return m, nil
+	}
+	
 	switch m.State {
 	case StateMenu:
 		return m.updateMenu(msg)
@@ -195,7 +207,7 @@ func (m *Model) updateConfigure(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Selected--
 		}
 	case "down", "j":
-		if m.Selected < 1 {
+		if m.Selected < 2 {
 			m.Selected++
 		}
 	case "enter", "space":
@@ -218,6 +230,9 @@ func (m *Model) updateConfigure(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 			m.Styles = NewStyles(m.Config.ColorTheme)
+			m.Config.Save()
+		case 2:
+			m.Config.EnableNotifications = !m.Config.EnableNotifications
 			m.Config.Save()
 		}
 	}

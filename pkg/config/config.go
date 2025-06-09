@@ -11,15 +11,22 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	RefreshRate time.Duration `json:"refresh_rate"`
-	FeedsFile   string        `json:"feeds_file"`
-	ColorTheme  string        `json:"color_theme"`
-	ConfigFile  string        `json:"-"`
+	RefreshRate         time.Duration `json:"refresh_rate"`
+	FeedsFile           string        `json:"feeds_file"`
+	ColorTheme          string        `json:"color_theme"`
+	SeenArticlesFile    string        `json:"seen_articles_file"`
+	EnableNotifications bool          `json:"enable_notifications"`
+	ConfigFile          string        `json:"-"`
 }
 
 // FeedConfig represents the feeds configuration
 type FeedConfig struct {
 	Feeds []rss.FeedInfo `json:"feeds"`
+}
+
+// SeenArticles represents the seen articles tracking
+type SeenArticles struct {
+	Articles map[string]bool `json:"articles"`
 }
 
 // DefaultConfig returns the default configuration
@@ -28,10 +35,12 @@ func DefaultConfig() *Config {
 	configDir := filepath.Join(homeDir, ".config", "rsss")
 
 	return &Config{
-		RefreshRate: 5 * time.Minute,
-		FeedsFile:   filepath.Join(configDir, "feeds.json"),
-		ColorTheme:  "default",
-		ConfigFile:  filepath.Join(configDir, "config.json"),
+		RefreshRate:         5 * time.Minute,
+		FeedsFile:           filepath.Join(configDir, "feeds.json"),
+		ColorTheme:          "default",
+		SeenArticlesFile:    filepath.Join(configDir, "seen.json"),
+		EnableNotifications: true,
+		ConfigFile:          filepath.Join(configDir, "config.json"),
 	}
 }
 
@@ -105,6 +114,41 @@ func (f *FeedConfig) Save(filename string) error {
 	}
 
 	data, err := json.MarshalIndent(f, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filename, data, 0644)
+}
+
+// LoadSeenArticles loads seen articles from file
+func LoadSeenArticles(filename string) (*SeenArticles, error) {
+	seen := &SeenArticles{Articles: make(map[string]bool)}
+
+	if _, err := os.Stat(filename); os.IsNotExist(err) {
+		return seen, nil
+	}
+
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return seen, err
+	}
+
+	if err := json.Unmarshal(data, seen); err != nil {
+		return seen, err
+	}
+
+	return seen, nil
+}
+
+// Save saves the seen articles to file
+func (s *SeenArticles) Save(filename string) error {
+	dir := filepath.Dir(filename)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}

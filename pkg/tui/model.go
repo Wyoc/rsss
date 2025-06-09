@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -38,10 +39,22 @@ type Model struct {
 	Width        int
 	Height       int
 	ViewportTop  int // For scrolling in feed view
+	
+	// Notification system
+	SeenArticles    map[string]bool // Track seen article URLs
+	NewArticleCount int             // Count of new articles since last check
+	ShowNotification bool           // Whether to show notification
+	NotificationMsg  string         // Notification message to display
 }
 
 // NewModel creates a new TUI model
 func NewModel(cfg *config.Config, feeds *config.FeedConfig, rssClient *rss.Client) *Model {
+	// Load seen articles from file
+	seenArticles := make(map[string]bool)
+	if seen, err := config.LoadSeenArticles(cfg.SeenArticlesFile); err == nil {
+		seenArticles = seen.Articles
+	}
+	
 	return &Model{
 		State:        StateMenu,
 		MenuSelected: 0,
@@ -52,6 +65,11 @@ func NewModel(cfg *config.Config, feeds *config.FeedConfig, rssClient *rss.Clien
 		Loading:      true,
 		LastRefresh:  time.Now(),
 		RSSClient:    rssClient,
+		
+		// Initialize notification system with loaded data
+		SeenArticles:     seenArticles,
+		NewArticleCount:  0,
+		ShowNotification: false,
 	}
 }
 
@@ -98,4 +116,51 @@ func (m *Model) wrapText(text string, width int) string {
 	}
 	
 	return strings.Join(lines, "\n")
+}
+
+// checkForNewArticles compares current articles with seen articles and updates notification state
+func (m *Model) checkForNewArticles(articles []rss.Article) {
+	if len(m.SeenArticles) == 0 {
+		// First run - mark all current articles as seen without notification
+		for _, article := range articles {
+			m.SeenArticles[article.Link] = true
+		}
+		m.saveSeenArticles()
+		return
+	}
+	
+	newCount := 0
+	for _, article := range articles {
+		if !m.SeenArticles[article.Link] {
+			newCount++
+			m.SeenArticles[article.Link] = true
+		}
+	}
+	
+	if newCount > 0 && m.Config.EnableNotifications {
+		m.NewArticleCount = newCount
+		m.ShowNotification = true
+		if newCount == 1 {
+			m.NotificationMsg = "🔔 1 new article available!"
+		} else {
+			m.NotificationMsg = fmt.Sprintf("🔔 %d new articles available!", newCount)
+		}
+		m.saveSeenArticles()
+	} else if newCount > 0 {
+		// Still save seen articles even if notifications are disabled
+		m.saveSeenArticles()
+	}
+}
+
+// dismissNotification clears the current notification
+func (m *Model) dismissNotification() {
+	m.ShowNotification = false
+	m.NotificationMsg = ""
+	m.NewArticleCount = 0
+}
+
+// saveSeenArticles saves the current seen articles to file
+func (m *Model) saveSeenArticles() {
+	seen := &config.SeenArticles{Articles: m.SeenArticles}
+	seen.Save(m.Config.SeenArticlesFile)
 }
