@@ -6,8 +6,9 @@
 - **Smart Detection**: Automatically detects when new articles are published
 - **Persistent Tracking**: Remembers which articles you've seen across app restarts  
 - **Configurable**: Enable/disable notifications in the settings
-- **Lightweight**: Non-intrusive banner that appears when new content is available
-- **Easy Dismissal**: Press Space, Enter, or 'n' to dismiss notifications
+- **Dual Notifications**: Shows both in-app banners AND system notifications
+- **Cross-Platform**: Uses `notify-send` on Linux, falls back gracefully on other systems
+- **Easy Dismissal**: Press Space, Enter, or 'n' to dismiss in-app notifications
 
 ### 🎨 New Color Themes
 - **default**: Modern indigo and pink theme with clean styling
@@ -81,8 +82,11 @@ The notification system creates these files in `~/.config/rsss/`:
 
 ### 🔔 **How Notifications Work**
 1. **First Run**: All current articles are marked as "seen" without notification
-2. **Subsequent Runs**: New articles trigger a notification banner
-3. **Persistence**: Article tracking survives app restarts
-4. **Smart Refresh**: Only shows notifications for truly new content
+2. **Subsequent Runs**: New articles trigger both system and in-app notifications
+3. **System Notifications**: Appears in your desktop notification center (Linux with `notify-send`)
+4. **In-App Notifications**: Shows a banner within the TUI interface
+5. **Persistence**: Article tracking survives app restarts
+6. **Smart Refresh**: Only shows notifications for truly new content
+7. **Requirements**: On Linux, ensure `libnotify` is installed (`pacman -S libnotify` on Arch)
 
 All existing functionality remains the same, but with a much more polished interface and intelligent new article notifications!

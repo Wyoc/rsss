@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"rsss/pkg/config"
+	"rsss/pkg/notifications"
 	"rsss/pkg/rss"
 )
 
@@ -41,10 +42,11 @@ type Model struct {
 	ViewportTop  int // For scrolling in feed view
 	
 	// Notification system
-	SeenArticles    map[string]bool // Track seen article URLs
-	NewArticleCount int             // Count of new articles since last check
-	ShowNotification bool           // Whether to show notification
-	NotificationMsg  string         // Notification message to display
+	SeenArticles    map[string]bool          // Track seen article URLs
+	NewArticleCount int                      // Count of new articles since last check
+	ShowNotification bool                    // Whether to show notification
+	NotificationMsg  string                  // Notification message to display
+	SystemNotifier  notifications.Notifier  // System notification handler
 }
 
 // NewModel creates a new TUI model
@@ -70,6 +72,7 @@ func NewModel(cfg *config.Config, feeds *config.FeedConfig, rssClient *rss.Clien
 		SeenArticles:     seenArticles,
 		NewArticleCount:  0,
 		ShowNotification: false,
+		SystemNotifier:   notifications.NewNotifier(),
 	}
 }
 
@@ -145,6 +148,10 @@ func (m *Model) checkForNewArticles(articles []rss.Article) {
 		} else {
 			m.NotificationMsg = fmt.Sprintf("🔔 %d new articles available!", newCount)
 		}
+		
+		// Send system notification
+		notifications.SendArticleNotification(m.SystemNotifier, newCount)
+		
 		m.saveSeenArticles()
 	} else if newCount > 0 {
 		// Still save seen articles even if notifications are disabled
