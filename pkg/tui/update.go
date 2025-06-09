@@ -24,6 +24,10 @@ func (m *Model) Init() tea.Cmd {
 // Update handles all TUI messages
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.Width = msg.Width
+		m.Height = msg.Height
+		
 	case tea.KeyMsg:
 		return m.handleKeyPress(msg)
 
@@ -33,6 +37,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Err = msg.Err
 		m.LastRefresh = time.Now()
 		m.Selected = 0
+		m.ViewportTop = 0 // Reset viewport when new articles load
 
 	case TickMsg:
 		if time.Since(m.LastRefresh) >= m.Config.RefreshRate {
@@ -118,10 +123,19 @@ func (m *Model) updateFeedView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "up", "k":
 		if m.Selected > 0 {
 			m.Selected--
+			// Scroll viewport up if needed
+			if m.Selected < m.ViewportTop {
+				m.ViewportTop = m.Selected
+			}
 		}
 	case "down", "j":
 		if m.Selected < len(m.Articles)-1 {
 			m.Selected++
+			// Scroll viewport down if needed
+			maxVisible := m.getMaxVisibleArticles()
+			if m.Selected >= m.ViewportTop+maxVisible {
+				m.ViewportTop = m.Selected - maxVisible + 1
+			}
 		}
 	case "enter":
 		if len(m.Articles) > 0 && m.Selected < len(m.Articles) {

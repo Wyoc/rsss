@@ -55,58 +55,80 @@ func (m *Model) viewMenu() string {
 func (m *Model) viewFeedView() string {
 	var b strings.Builder
 
-	b.WriteString(m.Styles.Title.Render("📰 Latest Articles"))
+	// Note: Height calculation is now handled in getMaxVisibleArticles()
+	
+	// Compact header - just the essential info on one line
+	headerInfo := fmt.Sprintf("📰 Latest Articles | Updated: %s", m.LastRefresh.Format("15:04:05"))
+	
+	if m.Err != nil {
+		headerInfo += fmt.Sprintf(" | Error: %v", m.Err)
+	}
+	
+	b.WriteString(m.Styles.Title.Render(headerInfo))
 	b.WriteString("\n")
-	b.WriteString(m.Styles.Normal.Render(fmt.Sprintf("Last updated: %s", m.LastRefresh.Format("15:04:05"))))
-	b.WriteString("\n\n")
 
+	// Handle special states
 	if m.Loading {
 		b.WriteString(m.Styles.Normal.Render("Loading feeds..."))
+		b.WriteString("\n")
+		b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter to read, 'r' to refresh, Esc to menu"))
 		return b.String()
 	}
 
-	if m.Err != nil {
-		b.WriteString(m.Styles.Error.Render(fmt.Sprintf("Error: %v", m.Err)))
-		b.WriteString("\n")
-	}
-
 	if len(m.Feeds.Feeds) == 0 {
-		b.WriteString(m.Styles.Error.Render("No feeds configured!"))
+		b.WriteString(m.Styles.Error.Render("No feeds configured! Go to 'Manage Feeds' to add RSS feeds first."))
 		b.WriteString("\n")
-		b.WriteString(m.Styles.Normal.Render("Go to 'Manage Feeds' to add some RSS feeds first."))
-		b.WriteString("\n\n")
-		b.WriteString(m.Styles.Normal.Render("Press Esc to return to menu"))
+		b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter to read, 'r' to refresh, Esc to menu"))
 		return b.String()
 	}
 
 	if len(m.Articles) == 0 {
 		b.WriteString(m.Styles.Normal.Render("No articles found. Press 'r' to refresh."))
+		b.WriteString("\n")
+		b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter to read, 'r' to refresh, Esc to menu"))
 		return b.String()
 	}
 
-	for i, article := range m.Articles {
-		if i >= 20 {
+	// Calculate terminal width for responsive layout
+	terminalWidth := m.Width
+	if terminalWidth == 0 {
+		terminalWidth = 80 // Fallback
+	}
+
+	// Display articles using available height with scrolling
+	maxArticles := m.getMaxVisibleArticles()
+	
+	// Calculate visible range with scrolling
+	startIdx := m.ViewportTop
+	endIdx := min(len(m.Articles), startIdx+maxArticles)
+	
+	for i := range endIdx - startIdx {
+		articleIdx := startIdx + i
+		if articleIdx >= len(m.Articles) {
 			break
 		}
-
+		article := m.Articles[articleIdx]
+		
 		style := m.Styles.Normal
-		if i == m.Selected {
+		if articleIdx == m.Selected {
 			style = m.Styles.Selected
 		}
 
-		// Format time and feed name with consistent width
+		// Format time and feed name with responsive width
 		timeStr := article.PubDate.Format("15:04")
 		feedName := article.FeedName
-		if len(feedName) > 15 {
-			feedName = feedName[:12] + "..."
+		
+		// Adjust feed name width based on terminal size
+		feedNameWidth := min(15, max(8, terminalWidth/6)) // 8-15 chars based on width
+		if len(feedName) > feedNameWidth {
+			feedName = feedName[:feedNameWidth-3] + "..."
 		}
 		
 		// Create aligned columns: [TIME] [FEED_NAME] TITLE
-		// Time: 5 chars, Feed: 15 chars padded
-		prefix := fmt.Sprintf("%s %-15s ", timeStr, feedName)
+		prefix := fmt.Sprintf("%s %-*s ", timeStr, feedNameWidth, feedName)
 		
-		// Calculate available space for title (assuming 80 char terminal width)
-		titleMaxWidth := max(20, 80-len(prefix)-2) // 2 for margins
+		// Calculate available space for title using actual terminal width
+		titleMaxWidth := max(20, terminalWidth-len(prefix)-2) // 2 for margins
 		
 		title := article.Title
 		if len(title) > titleMaxWidth {
@@ -118,7 +140,7 @@ func (m *Model) viewFeedView() string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("\n")
+	// Help text
 	b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter to read, 'r' to refresh, Esc to menu"))
 
 	return b.String()
@@ -248,16 +270,40 @@ func (m *Model) viewArticleView() string {
 	}
 
 	article := m.Articles[m.Selected]
+	
+	// Get terminal width for responsive layout
+	terminalWidth := m.Width
+	if terminalWidth == 0 {
+		terminalWidth = 80 // Fallback
+	}
 
-	// Article header with title
-	b.WriteString(m.Styles.Title.Render("📖 " + article.Title))
+	// Article header with title (word-wrapped if needed)
+	title := article.Title
+	if len(title) > terminalWidth-4 { // Account for emoji and padding
+		title = m.wrapText(title, terminalWidth-4)
+	}
+	b.WriteString(m.Styles.Title.Render("📖 " + title))
 	b.WriteString("\n\n")
 
-	// Article metadata
+	// Article metadata - compact for mobile, expanded for wider screens
 	timeStr := article.PubDate.Format("15:04 on 2006-01-02")
-	b.WriteString(m.Styles.Accent.Render(fmt.Sprintf("🕒 %s | 📰 %s", timeStr, article.FeedName)))
+	if terminalWidth < 60 {
+		// Compact layout for narrow screens
+		b.WriteString(m.Styles.Accent.Render(fmt.Sprintf("🕒 %s", timeStr)))
+		b.WriteString("\n")
+		b.WriteString(m.Styles.Accent.Render(fmt.Sprintf("📰 %s", article.FeedName)))
+	} else {
+		// Full layout for wider screens
+		b.WriteString(m.Styles.Accent.Render(fmt.Sprintf("🕒 %s | 📰 %s", timeStr, article.FeedName)))
+	}
 	b.WriteString("\n")
-	b.WriteString(m.Styles.Normal.Render(fmt.Sprintf("🔗 %s", article.Link)))
+	
+	// URL - wrap if too long
+	url := article.Link
+	if len(url) > terminalWidth-4 {
+		url = url[:terminalWidth-7] + "..."
+	}
+	b.WriteString(m.Styles.Normal.Render(fmt.Sprintf("🔗 %s", url)))
 	b.WriteString("\n\n")
 
 	// Article content
@@ -306,7 +352,9 @@ func (m *Model) viewArticleView() string {
 		}
 		content = strings.Join(cleanLines, "\n\n")
 		
-		b.WriteString(m.Styles.Normal.Render(content))
+		// Wrap content to terminal width
+		wrappedContent := m.wrapText(content, terminalWidth-4) // Leave margin
+		b.WriteString(m.Styles.Normal.Render(wrappedContent))
 	} else {
 		b.WriteString(m.Styles.Normal.Render("No content available for this article."))
 	}
