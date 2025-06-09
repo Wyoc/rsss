@@ -46,6 +46,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.Err = msg.Err
 		}
+
+	case OpenURLMsg:
+		m.State = StateFeedView // Return to feed view after opening URL
+		if msg.Err != nil {
+			m.Err = msg.Err
+		} else {
+			m.Err = nil // Clear any previous errors
+		}
 	}
 
 	return m, nil
@@ -58,6 +66,8 @@ func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateMenu(msg)
 	case StateFeedView:
 		return m.updateFeedView(msg)
+	case StateArticleView:
+		return m.updateArticleView(msg)
 	case StateManageFeeds:
 		return m.updateManageFeeds(msg)
 	case StateConfigure:
@@ -114,9 +124,10 @@ func (m *Model) updateFeedView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.Selected++
 		}
 	case "enter":
-		if len(m.Articles) > 0 {
-			// This would be handled by the main application
-			return m, tea.Quit
+		if len(m.Articles) > 0 && m.Selected < len(m.Articles) {
+			// Switch to article view to show content
+			m.State = StateArticleView
+			return m, nil
 		}
 	case "r":
 		m.Loading = true
@@ -268,6 +279,21 @@ func (m *Model) updateRemoveFeed(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.Selected = 0
 			}
 			return m, FetchAllFeedsCmd(m.RSSClient, m.Feeds)
+		}
+	}
+	return m, nil
+}
+
+// updateArticleView handles article content view
+func (m *Model) updateArticleView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q", "esc":
+		m.State = StateFeedView
+		return m, nil
+	case "o":
+		// 'o' for "open" - open URL in browser and return to feed view
+		if len(m.Articles) > 0 && m.Selected < len(m.Articles) {
+			return m, OpenURLCmd(m.Articles[m.Selected].Link)
 		}
 	}
 	return m, nil

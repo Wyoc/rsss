@@ -13,6 +13,7 @@ type AppState int
 const (
 	StateMenu AppState = iota
 	StateFeedView
+	StateArticleView
 	StateManageFeeds
 	StateConfigure
 	StateAddFeed

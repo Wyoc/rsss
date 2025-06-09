@@ -12,6 +12,8 @@ func (m *Model) View() string {
 		return m.viewMenu()
 	case StateFeedView:
 		return m.viewFeedView()
+	case StateArticleView:
+		return m.viewArticleView()
 	case StateManageFeeds:
 		return m.viewManageFeeds()
 	case StateConfigure:
@@ -92,20 +94,32 @@ func (m *Model) viewFeedView() string {
 			style = m.Styles.Selected
 		}
 
+		// Format time and feed name with consistent width
+		timeStr := article.PubDate.Format("15:04")
+		feedName := article.FeedName
+		if len(feedName) > 15 {
+			feedName = feedName[:12] + "..."
+		}
+		
+		// Create aligned columns: [TIME] [FEED_NAME] TITLE
+		// Time: 5 chars, Feed: 15 chars padded
+		prefix := fmt.Sprintf("%s %-15s ", timeStr, feedName)
+		
+		// Calculate available space for title (assuming 80 char terminal width)
+		titleMaxWidth := max(20, 80-len(prefix)-2) // 2 for margins
+		
 		title := article.Title
-		if len(title) > 70 {
-			title = title[:67] + "..."
+		if len(title) > titleMaxWidth {
+			title = title[:titleMaxWidth-3] + "..."
 		}
 
-		timeStr := article.PubDate.Format("15:04")
-		feedInfo := fmt.Sprintf("[%s %s]", timeStr, article.FeedName)
-
-		b.WriteString(style.Render(fmt.Sprintf("%2d. %s %s", i+1, title, feedInfo)))
+		line := fmt.Sprintf("%s%s", prefix, title)
+		b.WriteString(style.Render(line))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter to open, 'r' to refresh, Esc to menu"))
+	b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter to read, 'r' to refresh, Esc to menu"))
 
 	return b.String()
 }
@@ -218,6 +232,87 @@ func (m *Model) viewRemoveFeed() string {
 
 	b.WriteString("\n")
 	b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to select, Enter to remove, Esc to cancel"))
+
+	return b.String()
+}
+
+// viewArticleView renders the article content view
+func (m *Model) viewArticleView() string {
+	var b strings.Builder
+
+	if len(m.Articles) == 0 || m.Selected >= len(m.Articles) {
+		b.WriteString(m.Styles.Error.Render("No article selected"))
+		b.WriteString("\n\n")
+		b.WriteString(m.Styles.Normal.Render("Press Esc to return to feed list"))
+		return b.String()
+	}
+
+	article := m.Articles[m.Selected]
+
+	// Article header with title
+	b.WriteString(m.Styles.Title.Render("📖 " + article.Title))
+	b.WriteString("\n\n")
+
+	// Article metadata
+	timeStr := article.PubDate.Format("15:04 on 2006-01-02")
+	b.WriteString(m.Styles.Accent.Render(fmt.Sprintf("🕒 %s | 📰 %s", timeStr, article.FeedName)))
+	b.WriteString("\n")
+	b.WriteString(m.Styles.Normal.Render(fmt.Sprintf("🔗 %s", article.Link)))
+	b.WriteString("\n\n")
+
+	// Article content
+	if article.Description != "" {
+		// Clean up HTML tags and decode entities for better readability
+		content := article.Description
+		
+		// Basic HTML tag removal (simple approach)
+		content = strings.ReplaceAll(content, "<br>", "\n")
+		content = strings.ReplaceAll(content, "<br/>", "\n")
+		content = strings.ReplaceAll(content, "<br />", "\n")
+		content = strings.ReplaceAll(content, "<p>", "\n")
+		content = strings.ReplaceAll(content, "</p>", "\n")
+		
+		// Remove remaining HTML tags (basic regex replacement)
+		for strings.Contains(content, "<") && strings.Contains(content, ">") {
+			start := strings.Index(content, "<")
+			end := strings.Index(content[start:], ">")
+			if end != -1 {
+				content = content[:start] + content[start+end+1:]
+			} else {
+				break
+			}
+		}
+		
+		// Basic HTML entity decoding
+		content = strings.ReplaceAll(content, "&#8217;", "'")
+		content = strings.ReplaceAll(content, "&#8220;", "\"")
+		content = strings.ReplaceAll(content, "&#8221;", "\"")
+		content = strings.ReplaceAll(content, "&amp;", "&")
+		content = strings.ReplaceAll(content, "&lt;", "<")
+		content = strings.ReplaceAll(content, "&gt;", ">")
+		content = strings.ReplaceAll(content, "&quot;", "\"")
+		content = strings.ReplaceAll(content, "&#160;", " ")
+		content = strings.ReplaceAll(content, "&nbsp;", " ")
+		
+		// Clean up excessive whitespace
+		content = strings.TrimSpace(content)
+		lines := strings.Split(content, "\n")
+		var cleanLines []string
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				cleanLines = append(cleanLines, line)
+			}
+		}
+		content = strings.Join(cleanLines, "\n\n")
+		
+		b.WriteString(m.Styles.Normal.Render(content))
+	} else {
+		b.WriteString(m.Styles.Normal.Render("No content available for this article."))
+	}
+
+	b.WriteString("\n\n")
+	b.WriteString(m.Styles.Normal.Render("Press 'o' to open in browser, Esc to return to feed list"))
 
 	return b.String()
 }

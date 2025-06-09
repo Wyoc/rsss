@@ -20,3 +20,9 @@ type SaveMsg struct {
 	Success bool
 	Err     error
 }
+
+// OpenURLMsg represents the result of opening a URL in browser
+type OpenURLMsg struct {
+	URL string
+	Err error
+}
