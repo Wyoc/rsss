@@ -16,3 +16,6 @@ go.work
 
 # RSS client binary
 rsss
+
+# Build directory
+build/
