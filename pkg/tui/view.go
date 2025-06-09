@@ -7,24 +7,33 @@ import (
 
 // View renders the current state of the TUI
 func (m *Model) View() string {
+	var content string
+	
 	switch m.State {
 	case StateMenu:
-		return m.viewMenu()
+		content = m.viewMenu()
 	case StateFeedView:
-		return m.viewFeedView()
+		content = m.viewFeedView()
 	case StateArticleView:
-		return m.viewArticleView()
+		content = m.viewArticleView()
 	case StateManageFeeds:
-		return m.viewManageFeeds()
+		content = m.viewManageFeeds()
 	case StateConfigure:
-		return m.viewConfigure()
+		content = m.viewConfigure()
 	case StateAddFeed:
-		return m.viewAddFeed()
+		content = m.viewAddFeed()
 	case StateRemoveFeed:
-		return m.viewRemoveFeed()
+		content = m.viewRemoveFeed()
 	default:
-		return "Unknown state"
+		content = "Unknown state"
 	}
+	
+	// Add notification overlay if there's a notification to show
+	if m.ShowNotification {
+		content = m.addNotificationOverlay(content)
+	}
+	
+	return content
 }
 
 // viewMenu renders the main menu
@@ -200,6 +209,18 @@ func (m *Model) viewConfigure() string {
 	b.WriteString(style.Render(fmt.Sprintf("  Color Theme: %s", m.Config.ColorTheme)))
 	b.WriteString("\n")
 
+	// Notifications option
+	style = m.Styles.Normal
+	if m.Selected == 2 {
+		style = m.Styles.Selected
+	}
+	notificationStatus := "disabled"
+	if m.Config.EnableNotifications {
+		notificationStatus = "enabled"
+	}
+	b.WriteString(style.Render(fmt.Sprintf("  Notifications: %s", notificationStatus)))
+	b.WriteString("\n")
+
 	b.WriteString(m.Styles.Normal.Render(fmt.Sprintf("  Feeds File: %s", m.Config.FeedsFile)))
 	b.WriteString("\n\n")
 	b.WriteString(m.Styles.Normal.Render("Use ↑/↓ to navigate, Enter/Space to change, Esc to menu"))
@@ -362,5 +383,26 @@ func (m *Model) viewArticleView() string {
 	b.WriteString("\n\n")
 	b.WriteString(m.Styles.Normal.Render("Press 'o' to open in browser, Esc to return to feed list"))
 
+	return b.String()
+}
+
+// addNotificationOverlay adds a notification banner to the content
+func (m *Model) addNotificationOverlay(content string) string {
+	var b strings.Builder
+	
+	// Add notification at the top
+	notification := fmt.Sprintf("  %s  ", m.NotificationMsg)
+	notificationBar := m.Styles.Success.Render(notification)
+	b.WriteString(notificationBar)
+	b.WriteString("\n")
+	
+	// Add dismissal instruction
+	dismissText := "Press Space/Enter/n to dismiss"
+	b.WriteString(m.Styles.Normal.Render(dismissText))
+	b.WriteString("\n\n")
+	
+	// Add the main content
+	b.WriteString(content)
+	
 	return b.String()
 }
